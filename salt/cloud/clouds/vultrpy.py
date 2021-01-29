@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Vultr Cloud Module using python-vultr bindings
 ==============================================
@@ -53,18 +52,13 @@ that startup script in a profile like so:
 
 """
 
-# Import python libs
-from __future__ import absolute_import, print_function, unicode_literals
-
 import logging
 import pprint
 import time
+import urllib.parse
 
-# Import salt libs
 import salt.config as config
 from salt.exceptions import SaltCloudConfigError, SaltCloudSystemExit
-from salt.ext import six
-from salt.ext.six.moves.urllib.parse import urlencode as _urlencode
 
 # Get logging started
 log = logging.getLogger(__name__)
@@ -105,15 +99,15 @@ def _cache_provider_details(conn=None):
     images = avail_images(conn)
     sizes = avail_sizes(conn)
 
-    for key, location in six.iteritems(locations):
+    for key, location in locations.items():
         DETAILS["avail_locations"][location["name"]] = location
         DETAILS["avail_locations"][key] = location
 
-    for key, image in six.iteritems(images):
+    for key, image in images.items():
         DETAILS["avail_images"][image["name"]] = image
         DETAILS["avail_images"][key] = image
 
-    for key, vm_size in six.iteritems(sizes):
+    for key, vm_size in sizes.items():
         DETAILS["avail_sizes"][vm_size["name"]] = vm_size
         DETAILS["avail_sizes"][key] = vm_size
 
@@ -204,7 +198,10 @@ def destroy(name):
     node = show_instance(name, call="action")
     params = {"SUBID": node["SUBID"]}
     result = _query(
-        "server/destroy", method="POST", decode=False, data=_urlencode(params)
+        "server/destroy",
+        method="POST",
+        decode=False,
+        data=urllib.parse.urlencode(params),
     )
 
     # The return of a destroy call is empty in the case of a success.
@@ -253,7 +250,7 @@ def _lookup_vultrid(which_key, availkey, keyname):
     if DETAILS == {}:
         _cache_provider_details()
 
-    which_key = six.text_type(which_key)
+    which_key = str(which_key)
     try:
         return DETAILS[availkey][which_key][keyname]
     except KeyError:
@@ -295,7 +292,7 @@ def create(vm_):
     __utils__["cloud.fire_event"](
         "event",
         "starting create",
-        "salt/cloud/{0}/creating".format(vm_["name"]),
+        "salt/cloud/{}/creating".format(vm_["name"]),
         args=__utils__["cloud.filter_event"](
             "creating", vm_, ["name", "profile", "provider", "driver"]
         ),
@@ -334,7 +331,7 @@ def create(vm_):
     __utils__["cloud.fire_event"](
         "event",
         "requesting instance",
-        "salt/cloud/{0}/requesting".format(vm_["name"]),
+        "salt/cloud/{}/requesting".format(vm_["name"]),
         args={
             "kwargs": __utils__["cloud.filter_event"](
                 "requesting", kwargs, list(kwargs)
@@ -345,7 +342,9 @@ def create(vm_):
     )
 
     try:
-        data = _query("server/create", method="POST", data=_urlencode(kwargs))
+        data = _query(
+            "server/create", method="POST", data=urllib.parse.urlencode(kwargs)
+        )
         if int(data.get("status", "200")) >= 300:
             log.error(
                 "Error creating %s on Vultr\n\n" "Vultr API returned %s\n",
@@ -360,7 +359,7 @@ def create(vm_):
             __utils__["cloud.fire_event"](
                 "event",
                 "instance request failed",
-                "salt/cloud/{0}/requesting/failed".format(vm_["name"]),
+                "salt/cloud/{}/requesting/failed".format(vm_["name"]),
                 args={"kwargs": kwargs},
                 sock_dir=__opts__["sock_dir"],
                 transport=__opts__["transport"],
@@ -379,7 +378,7 @@ def create(vm_):
         __utils__["cloud.fire_event"](
             "event",
             "instance request failed",
-            "salt/cloud/{0}/requesting/failed".format(vm_["name"]),
+            "salt/cloud/{}/requesting/failed".format(vm_["name"]),
             args={"kwargs": kwargs},
             sock_dir=__opts__["sock_dir"],
             transport=__opts__["transport"],
@@ -391,7 +390,7 @@ def create(vm_):
         Wait for the IP address to become available
         """
         data = show_instance(vm_["name"], call="action")
-        main_ip = six.text_type(data.get("main_ip", "0"))
+        main_ip = str(data.get("main_ip", "0"))
         if main_ip.startswith("0"):
             time.sleep(3)
             return False
@@ -404,7 +403,7 @@ def create(vm_):
         data = show_instance(vm_["name"], call="action")
         # print("Waiting for default password")
         # pprint.pprint(data)
-        default_password = six.text_type(data.get("default_password", ""))
+        default_password = str(data.get("default_password", ""))
         if default_password == "" or default_password == "not supported":
             time.sleep(1)
             return False
@@ -417,7 +416,7 @@ def create(vm_):
         data = show_instance(vm_["name"], call="action")
         # print("Waiting for status normal")
         # pprint.pprint(data)
-        if six.text_type(data.get("status", "")) != "active":
+        if str(data.get("status", "")) != "active":
             time.sleep(1)
             return False
         return data["default_password"]
@@ -429,7 +428,7 @@ def create(vm_):
         data = show_instance(vm_["name"], call="action")
         # print("Waiting for server state ok")
         # pprint.pprint(data)
-        if six.text_type(data.get("server_state", "")) != "ok":
+        if str(data.get("server_state", "")) != "ok":
             time.sleep(1)
             return False
         return data["default_password"]
@@ -478,7 +477,7 @@ def create(vm_):
     __utils__["cloud.fire_event"](
         "event",
         "created instance",
-        "salt/cloud/{0}/created".format(vm_["name"]),
+        "salt/cloud/{}/created".format(vm_["name"]),
         args=__utils__["cloud.filter_event"](
             "created", vm_, ["name", "profile", "provider", "driver"]
         ),
